@@ -1,7 +1,10 @@
 <?php
 
-   require_once 'HelioMDESserverWeb_ini.php';
-
+     require_once 'HelioMDESserverWeb_ini.php';
+ 
+    if (Verbose) define("log",fopen(wsDir."/log","w"));
+    if (Verbose) fwrite(log,'PROCESSING START'.PHP_EOL);
+     
      $user = 'helio1';
 
 // functions => object: IP; ID; function; mission; starttime; stoptime;  hash array of params    
@@ -11,6 +14,8 @@
 *   Decoding and unserialization received argument
 */ 
     $timeTableList = array();
+    $arrayStartTime = array();
+    $arrayStopTime = array();
     $IP = $helioRequest->IP;
     $ID = $helioRequest->ID;
     $functions = $helioRequest->requests;
@@ -22,9 +27,8 @@
     $dom = new DomDocument("1.0");
     if (file_exists(xmlDir.'DesFunctions.xml')) $dom -> load(xmlDir.'DesFunctions.xml');
 
-
     $i=0;
-
+	      
     foreach ($functions as $function) {
 // Decoding functions      
       $mission = $function-> mission;
@@ -33,23 +37,24 @@
 // Time in string format to  time format
       $startTime = strtotime($function->starttime);
       $endTime = strtotime($function->stoptime);
+      $arrayStartTime[$i] = $function->starttime;
+      $arrayStopTime [$i] = $function->stoptime;
       
       $resDirName = resultDir.$ID;
       createSearchListFile($startTime, $endTime, $ID);
 //   Get list of arguments used in the function
 // find searching function in functions.xml file
     // NEW  find all parameter after #; select parameter and delate # with parameter
-      
- 	$listFunc = explode("#",$func);
+       
+ 	$listFunc = explode(":",$func);
 	if (count($listFunc) > 1){
 	  $parameter = $listFunc[1];
 	  $func = $listFunc[0];
 	}
-      
-      
+            
       $thisFunction =  $dom->getElementById($func);
       if ($thisFunction == null){
-	errorProcessing($ID, "InternalError01: function is not implemented in AMDA-HELIO yet");
+	errorProcessing($ID, "InternalError01: function $func is not implemented in AMDA-HELIO yet");         
 	die();
       }		
 // find predefined arguments in functions.xml file
@@ -67,7 +72,7 @@
 //    Find tag with predefined mission 	
       $thisMission = $domParam->getElementById($mission);
       if ($thisMission == null) {
-	errorProcessing($ID, "InternalError03: mission is not implemented in AMDA-HELIO yet");
+	errorProcessing($ID, "InternalError03: $mission is not implemented in AMDA-HELIO yet");
 	die();
       }	
 //    Find tag with this parameter for replace  'velocity_magnitude'	
@@ -99,7 +104,7 @@
 		$paramArg = $paramsArgs[0];
 	    }
 	    else $paramArg = $thisParamName;
-// 	   $lines[2] =  str_replace($param, $paramArg, $lines[2]);
+// 	    $lines[2] =  str_replace($param, $paramArg, $lines[2]);
 	    $lines[2] =  str_replace("parameter", $paramArg, $lines[2]);
 
 	    $chain = $lines[1];
@@ -107,7 +112,7 @@
 	    $vars[0] = trim($lines[2]);
 	    $fileContents = implode("\n",$lines);
 // Down to working directory            
-               chdir(resultDir.$ID."/RES");
+            chdir(resultDir.$ID."/RES");
 	    
 	    $fileInfo = $chain.'    '.$vars;
 	    $fileResult = 'search.res';
@@ -115,10 +120,22 @@
 	    fwrite($fileRes,$fileContents);
 	    fclose($fileRes); 
  
-// create IDL PARAMCALCUL PROCEDURE            
+// create IDL PARAMCALCUL PROCEDURE             
 	    $myParamBuilder = new ParamBuilder();
+ 
+//  Process   Local Params without codes if they exist     
+          if (file_exists(XML_BASE_DIR."LocalParamsList.xml")) { 
+                $localParams = new DomDocument('1.0');
+                $localParams->load(XML_BASE_DIR."LocalParamsList.xml");
+                $xp = new domxpath($localParams);               
+                foreach ($vars as $var) {  
+                             if ($xp->query('//PARAM[.="'.$var.'"]') != null)                           
+                                          $myParamBuilder->paramLocalBuild($var);           
+		}
+	    }
+  
             $myParamBuilder->makeParamCalcul($chain, $vars, "");
-
+ 
 // File creation and Get PID and STATUT
 	    $cmd = DDBIN."DD_Search ".$user." ".$IP." ".DDPROJECT." ".DDPROJLIB;  
 	    $cmdResult = system($cmd);
@@ -129,7 +146,10 @@
 	    $i++; 
 // COPY RESULT TO FINAL RESULT             
      }
+
      chdir(resultDir.$ID."/TT");
+
+
  
      $newHelioResult = new DomDocument("1.0");
      $domXml = new DomDocument("1.0");
@@ -139,11 +159,59 @@
 	if (file_exists("helio".$j.".xml")){ 
 	    $domXml->load("helio".$j.".xml");
 	    // Le noeud que nous voulons importer dans le nouveau document
+	    $source = $domXml->getElementsByTagName("Source")->item(0);
+	    $strSource = $source->nodeValue;
+	    // parsing Source
+	    $sourceArray = parseSource($strSource);
+	    // add data for INFO information in xml files
 	    $node = $domXml->getElementsByTagName("TimeTable")->item(0);
 	    $node ->setAttribute('Name',$timeTableList[$j]);
- 
+	    //  Delete ';' in the end of <Chain> Ask ob Bob e-mail from 20/07/2011
+	    $chainBob = $domXml->getElementsByTagName("Chain")->item(0);
+	    $chainToChange = $chainBob->nodeValue;
+	    $newChain = rtrim(trim($chainToChange),";");
 
-//	    $newHelioResult->load("helioResult.xml");
+	    //	Add MISSION_INSTRUMENT (ask of Anja see e-mail 20/07/2011) 
+	    //  Load XML from  'DesFunctionsHFE.xml' file  == file describing implemented AMDA functions to HFE
+	    $domHFE = new DomDocument("1.0");
+	    if (file_exists(xmlDir.'DesFunctionsHFE.xml')){
+	      $domHFE -> load(xmlDir.'DesFunctionsHFE.xml');
+	      $xml = $domHFE->saveXML();
+	    }
+	    $arrayArg = explode(':',$timeTableList[$j]);
+	    $arrayMiss = explode('_',$timeTableList[$j]);
+	    $missionHFE = $domHFE->getElementById($arrayMiss[0]);
+
+// 	    $xml = $missionHFE->saveXML();
+
+	    foreach ($missionHFE->getElementsByTagName('param') as $par){ 
+	      if (trim($par->getAttribute('name')) == trim($arrayArg[1])){
+// 		fwrite($fp, trim($par->getAttribute('name')).'_'.trim($par->getAttribute('instrument'))."\n");  
+		$instr = $arrayMiss[0].'__'.trim($par->getAttribute('instrument'));
+	      }
+	    }
+// fwrite($fp, $arrayMiss[0].'_'.$arrayArg[1].'====='.$instr."\n\n");
+	    //  Add TIME_RANGE    (FOR Bob)
+	    $TIME_RANGE = $domXml->createElement('TIME_RANGE','FROM:'.$arrayStartTime[$j].' TO:'.$arrayStopTime [$j]);
+	    $node->appendChild($TIME_RANGE);
+	    //  Add New Chain
+	    $newChaine = $domXml->createElement('newChain',$newChain);
+	    $node->appendChild($newChaine);
+	    //  Add Instrument
+	    $instrument = $domXml->createElement('Instrument',$instr);
+	    $node->appendChild($instrument);
+	    //  Add Time_Step
+	    $Time_Step = $domXml->createElement('Time_Step',$sourceArray['Time_Step']);
+	    $node->appendChild($Time_Step);
+	    // Add Function_Description
+	    $Function_Description = $domXml->createElement('Function_Description',$sourceArray['Function_Description']);
+	    $node->appendChild($Function_Description);
+	    //  Add Creation_Date in 'iso8601'
+	    $Creation_Date = $domXml->createElement('Creation_Date',date("c"));
+	    $node->appendChild($Creation_Date);
+
+	    $domXml->saveXML();	    
+
 	    // Importation du noeud, ainsi que tous ses files, dans le document
 	    $node = $newHelioResult->importNode($node, true);
 	    // Et on l'ajoute dans le le noeud racine "<MDES>"
@@ -155,7 +223,7 @@
  
 // Transformation in VOtable
  
-	$xslt = new XSLTProcessor();   
+	$xslt = new XSLTProcessor();    
 	// Chargement du fichier XSL
 	$xsl = new domDocument();   
 	$xsl -> load(XML_BASE_DIR."/xml2votMulti.xsl");
@@ -167,6 +235,7 @@
 	$vot -> loadXML($xslt -> transformToXML($newHelioResult));
 	$vot -> save("VOT.xml");
     
+  if (Verbose) fclose(log); 
   
 
     function timeInterval2Days($TimeInterval){
@@ -224,6 +293,34 @@
      	$fp = fopen(errorDir.$ID, 'w');
 	fwrite($fp, $errorKey);
 	fclose($fp);
+      }
+
+      function parseSource($strSource){
+/*  Explode string line source to array with delimiter ';'
+    Example of source:
+    AMDA Search: Time_Step: 600.0s; Data_absence_is_gap_for_gaps >    5 Data_Sampling_Times; Start_Time:2006-02-20T21:33:10 Time_Interval:369d01h07m
+    !!!!   TODO: Ask Elena if the source's  structure always is the same
+*/
+	$arrSource = explode(';',$strSource);
+
+	if (($arrSource) && (count($arrSource) !== 0)){
+	     $finalDesc = array();
+
+	  for ($i=0; $i<count($arrSource); $i++){
+	      switch ($i) {
+		  case 0:
+		      $tmpSource = explode(':',$arrSource[$i]);
+		      $finalDesc[trim($tmpSource[1])] = trim($tmpSource[2]);
+		      break;
+		  case 1:
+		      $finalDesc['Function_Description']=trim($arrSource[$i]);
+		      break;
+
+	      }
+	  }
+	  return $finalDesc;
+	}
+	else return null;
       }
 
 ?>
