@@ -1,20 +1,30 @@
 <?php
-    require_once 'HelioMDESserverWeb_ini.php';
-// Reception PID and jobID
+/** 
+*   @file killPID.php 
+*   @brief  
+*
+*   @version $Id:  $ 
+*/
+    require_once 'DES_ini.php';
+ 
     $ID = $argv[1];
     $pid = $argv[2];
-/*  	Predefined TimeOut.
-*	Application waiting this time before killing process 
-*  	Modification of TimeOut need be in the sleep
+    $timeOut = $argv[3];
+
+/*  	Predefined TimeOut (in HelioMDESserverWeb_ini.php)
+*	Application waits for this time before kill the process  	
 */  
-    sleep(TIMEOUT);
- // start killing process   
+        sleep($timeOut); 
 	exec("ps $pid", $ProcessState);
- //  if a process works, kill it and put a error message in the temporary error file 	
+
+ //  if process is pending, kills it and puts an error message into the temporary error file 	
 	if (count($ProcessState) >= 2) {
 		  exec("kill -9 $pid");
-		  $fp = fopen(errorDir.$ID, 'w');
+
+		  $fp = fopen(errorDir.$ID, 'a');
 		  fwrite($fp, "TimeOut");
 		  fclose($fp);
+
+
  	  }
 ?>

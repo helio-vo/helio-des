@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<des>
+  <missions>
+    <mission xml:id='ACE' name='ACE'>  
+      <dataset class='plasma' xml:id='ace:swe:all' instrument='SWEPAM' cadence='64' StartDate='1998-02-04' StopDate='2010-04-30'/>	 
+      <dataset class='mag' xml:id='ace:imf:all' instrument='MAG'  cadence='16' StartDate='1997-09-02' StopDate='2011-08-06'/>	 
+    </mission>
+    <mission xml:id='WIND' name='WIND'> 
+      <dataset class='plasma' xml:id='wnd:swe:kp' instrument='SWE'  cadence='90' StartDate='1994-11-17' StopDate='2011-08-10'/>	
+      <dataset class='mag' xml:id='wnd:mfi:kp' instrument='MFI'  cadence='60' StartDate='1994-11-16' StopDate='2011-07-29'/>	  
+    </mission> 
+    <mission xml:id='Ulysses' name='ULYSSES'> 
+       <dataset class='plasma' xml:id='ulys:bai:mom' instrument='SWOOPS' cadence='240' StartDate='1990-11-18' StopDate='2009-06-30'>
+	  <absentParam name='V'/>
+       </dataset> 
+       <dataset class='mag' xml:id='b:ulys:mag' instrument='FGM/VHM' cadence='1' StartDate='1990-10-25' StopDate='2011-06-27'/>
+    </mission> 
+    <mission xml:id='STEREO-A' name='STA'> 
+      <dataset class='plasma' xml:id='sta:l2:pla' instrument='PLASTIC' cadence='60' StartDate='2006-11-07' StopDate='2011-08-10'/>>
+      <dataset class='mag' xml:id='sta:mag:mag' instrument='MAG'  cadence='1' StartDate='2006-11-07' StopDate='2011-07-29'/>	
+    </mission> 
+    <mission xml:id='STEREO-B' name='STB'> 
+      <dataset class='plasma' xml:id='stb:l2:pla' instrument='PLASTIC' cadence='60' StartDate='2006-11-07' StopDate='2011-08-10'/>
+      <dataset class='mag' xml:id='stb:mag:mag' instrument='MAG' cadence='1' StartDate='2006-11-07' StopDate='2011-07-29'/> 
+    </mission>
+  </missions>
+  <parameters>
+     <dataset class='plasma' measurement_type='thermal plasma'>
+	  <param xml:id='V' name='V' fullname='velocity_magnitude'/>
+	  <param xml:id='N' name='N' fullname='ion_density'/>
+    </dataset> 
+    <dataset class='mag' measurement_type='magnetic field'>	  
+	  <param xml:id='B'  name='B'  fullname='magnetic_field_magnitude'/> 
+	  <param xml:id='BX' name='BX' fullname='magnetic_field_x_component'/>
+	  <param xml:id='BY' name='BY' fullname='magnetic_field_y_component'/>
+	  <param xml:id='BZ' name='BZ' fullname='magnetic_field_z_component'/>
+    </dataset>	  
+  </parameters>
+  <functions>
+	  <function xml:id = 'DERIV' n_param='1' name='Parameter Derivative'>
+		  <description> PARAM(t+dt) - PARAM(t) OP DELTAF; dt = AVERAGETIME * 2 </description>				
+		  <param name='V'/><param name='N'/>
+		  <param name='B'/><param name='BX'/><param name='BY'/><param name='BZ'/>	
+		  <args>		     
+		      <arg name = 'DELTAF' operation = 'LT, GT'/>
+		      <arg name = 'AVERAGETIME' operation = 'EQ'/>		    
+		      <compound name = 'DELTAT' primary = 'AVERAGETIME' operation = '*2'/>
+		  </args>
+	  </function>
+	  <function xml:id = 'SIGN'  n_param='1' name='Parameter Sign Change'>
+		  <description>PARAM(t+dt) / PARAM(t) lt 0; dt = AVERAGETIME * 3</description>				
+		  <param name='BX'/><param name='BY'/><param name='BZ'/>	
+		  <args>		     		  
+		      <arg name = 'AVERAGETIME' operation = 'EQ'/>		    
+		      <compound name = 'DELTAT' primary = 'AVERAGETIME' operation = '*3'/>
+		  </args>
+	  </function> 
+	  <function xml:id = 'VAR'  n_param='1' name='Parameter Variance in Sliding Window'>
+		  <description> </description>
+		  <param name='V'/><param name='N'/>				
+		  <param name='BX'/><param name='BY'/><param name='BZ'/>	
+		  <args>
+		      <arg name = 'DELTAF' operation = 'LT, GT'/>
+		      <arg name = 'TIMEWINDOW' operation = 'EQ' />		     		  
+		      <arg name = 'AVERAGETIME' operation = 'EQ'/>		       
+		  </args>
+	  </function>
+	  <function xml:id = 'VALUE' n_param='1' name='Parameter Value'>
+		  <description>PARAM OP DELTAF</description>				
+		  <param name='V'/><param name='N'/>
+		  <param name='B'/><param name='BX'/><param name='BY'/><param name='BZ'/>
+		  <args>
+		      <arg name = 'DELTAF' operation = 'LT, GT'/>
+		      <arg name = 'AVERAGETIME' operation = 'EQ'/>
+		  </args>
+	  </function>
+  </functions>
+</des>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<des>
+  <missions>
+    <mission xml:id='ACE' name='ACE'>         
+	  <param name='sw_1'/> 
+	  <param name='sw_0'/>	             
+	  <param name='imf_0_2'/> 
+	  <param name='imf_3'/>	  
+    </mission>
+    <mission xml:id='WIND' name='WIND'>
+          <param name='swe_0'/> 
+	  <param name='swe_4'/> 	         
+	  <param name='b_w_0_2'/> 
+	  <param name='b_w_3'/>	  
+    </mission> 
+    <mission xml:id='STEREO-A' name='STA'>
+	  <param name='np_sta'/>
+	  <param name='vpbulk_sta'/>
+	  <param name='b_sta'/>	
+	  <param name='bmod_sta'/>	 
+    </mission>  
+    <mission xml:id='STEREO-B' name='STB'>
+	  <param name='np_stb'/>
+	  <param name='vpbulk_stb'/>
+	  <param name='b_stb'/>	
+	  <param name='bmod_stb'/>	 
+    </mission> 
+    <mission xml:id='Ulysses' name='ULYSSES'>
+	  <param name='n_p_ulys'/>
+	  <param name='v_ulys_rtn'/>
+	  <param name='b_ulys_rtn'/>	
+	  <param name='b_ulys_mag'/>	 
+    </mission>    
+  </missions> 
+</des>

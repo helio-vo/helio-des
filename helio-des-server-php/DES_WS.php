@@ -1,34 +1,31 @@
 <?php
-/* $Id: DDserverWebHelio.php, v 0.1 2011/02/10 natasha based on file DDserverWeb.php,v 1.4 2008/08/22 14:57:45 elena Exp $ */
+ 
 /** 
-*   @file HelioServerWeb.php
-*   @brief PHP SoapServer for Helio WebServices
-*
-*   @date 14.01.2011
-*   @version 0.1 
+*   @class DES_WS
+*   @brief  
+*   
+*   @version $Id:  $ 
+*   Query Syntax: WHERE = function_name,mission_name:parameter_name:arg1_value_condition:arg2_value_condition:...;
 */
 
-require_once 'HelioMDESserverWeb_ini.php';
 
 class DES_WS {
-
+    
     private $user, $passwd, $IP;
     private $chain, $vars;
     private $statusdescription;   
-    private $resDirName;
-
-
+    private $resDirName, $HELIOPREFIX = 'HQ';
+    private $start, $stop, $missions, $nInts;
+    private $isSoap = false;
 
 	 function __construct(){
 		    
 /* ===============================================================================================================
   In AMDA registered 5 logins helio (helio1,helio2, ..., helio5  ) with a password helio.
-  In this version only login helio1 used.
-  Variables user, passwd & vars are global variables.
+  In this version only login helio1 used 
   =============================================================================================================== */		    
 		    $this->user = 'helio1';
-		    $this->passwd = 'helio';	
-		    $this->vars = array();
+		    $this->passwd = 'helio';
 	    }
 
 /**
@@ -38,16 +35,15 @@ class DES_WS {
 *	@param   void
 *	@return  string  
 */
-          public function setID(){
+          private function setID(){
 
-                   $HELIOPREFIX = "HQ";
 		   $nb_min = 10000;
 		   $nb_max = 99999;	      
 		   $nombre = mt_rand($nb_min,$nb_max);
 		   
 		    $this->IP = $this->getIPclient();
 		    
-	      return $HELIOPREFIX.$nombre;
+	      return $this->HELIOPREFIX.$nombre;
            }
 
 /**
@@ -56,7 +52,7 @@ class DES_WS {
 *	@param   void
 *	@return  string  
 */ 
-	  public  function getIPclient(){
+	  private  function getIPclient(){
  
 	    if (getenv('HTTP_X_FORWARDED_FOR'))
 	            $realIP = getenv('HTTP_X_FORWARDED_FOR');
@@ -77,10 +73,10 @@ class DES_WS {
   Function read contents of /home/budnik/Amda-Helio/DDHTML/cfg/login.cfg
   and launches script DD_htmllogin
   =============================================================================================================== */  
-           public function ddLogin() {
+          private function ddLogin() {
              
              $login = file_get_contents(ROOT_PATH."/cfg/login.cfg"); 
-             $loginCommd = $login.DDBIN."DD_htmllogin ".$this->user." ".$this->passwd." ".$this->IP."\n";
+             $loginCommd = $login.DDBIN."DD_htmllogin ".$this->user." ".$this->passwd." ".$this->IP.PHP_EOL;
              system($loginCommd, $res);
              return $res;
 
@@ -93,7 +89,7 @@ class DES_WS {
 *	@param   void
 *	@return  integer 
 */  
-	 public function ddCheckUser() {
+	 private function ddCheckUser() {
 		
 		$cmdCheckUser =  DDBIN."Check_User ".$this->IP." ".$this->user." 1> /dev/null 2> /dev/null";   
 		system($cmdCheckUser, $res);
@@ -126,7 +122,7 @@ class DES_WS {
   == /TT is subfolder of errorDir/[pidID] folder 
     - folder is designed for intermediate file with the results of ddSearch
  =============================================================================================================== */
-	  function makeDir($ID){
+	  private function makeDir($ID, $isPlot){
 	     
              if (!is_dir(resultDir)) mkdir(resultDir, 0755, true);
              if (!is_dir(errorDir)) mkdir(errorDir, 0755, true);
@@ -134,85 +130,26 @@ class DES_WS {
              if (!is_dir(pidDir)) mkdir(pidDir, 0755, true);
 
              $this->resDirName = resultDir.$ID;
-             if (mkdir($this->resDirName, 0755, true)) 
-	        if (mkdir($this->resDirName."/RES", 0755, true))
-	         if (mkdir($this->resDirName."/TT", 0755, true)) return true;
+              if (mkdir($this->resDirName, 0755, true)) 
+	        if (mkdir($this->resDirName."/RES", 0755, true)) {
+		    if (!$isPlot) { 
+			if (mkdir($this->resDirName."/TT", 0755, true)) 
+			    return true;
+			}
+		    else  
+			   return true;
+		}
 
              return false;
 	   }
-// =============================================================================================================
-/** makeRequest reads the conditions received from helio and 
-*   prepare a request object.
-*
-*  Function makeRequest reads the conditions received from helio and 
-*  prepare a request object to send the script as a parameter
-*  Format of condition: 
-*    J[join-optional].mission[optional].function[mandatory].argument[mandatory],value[value of argument in PQL format]
-*
-* @param     	string 	$conditions, $start, $stop, $from; 
-		boolean $oneInterval
-
-* @return    	string    
-*/
-//  ===============================================================================================================
-// 	private function makeRequest($conditions, $start, $stop, $from, $oneInterval) {
-//   
-// 	    $helioRequest = new stdClass();  
-// 	    $index = 0;
-// /*  Creation object with data to search results */
-// 
-//     foreach ($conditions as $condition) {     
-// 	  if ($condition != '') {
-// 		    $parts =  explode(',',$condition);
-// 		    $args =  explode('.',$parts[0]);
-// 		    $argsN = count($args);
-// 
-// 		    if ($argsN > 1) {
-// 				  
-// 			  $currentFunction = $args[$argsN - 2];
-// 			  $currentArg = $args[$argsN - 1];
-// 			  if ($argsN > 2) {
-// 			      if ($args[$argsN - 3] !== "J")
-// 				      $currentMission = $args[$argsN - 3];
-// 			      else $currentMission = $from[0];
-// 			  }
-// 			  else  $currentMission = $from[0];				  
-// 		    }       
-//   
-// 		      if (!$helioRequest->func){			   
-// 			    $helioRequest->func = $currentFunction;
-// 			    $helioRequest->mission = $currentMission;
-// 			    $helioRequest->starttime = $oneInterval ? $start[0] : $start[$index];
-// 			    $helioRequest->stoptime = $oneInterval ? $stop[0] : $stop[$index];
-// 		      }
-// 		      if ($helioRequest->func != $currentFunction || $helioRequest->mission != $currentMission) {
-// 
-// 	// new request
-// 			  $helioRequests[] = $helioRequest;
-// 			  $index++;
-// 			  $helioRequest = new stdClass();			 
-// 			  $helioRequest->func = $currentFunction;
-// 			  $helioRequest->mission = $currentMission;
-// 			  $helioRequest->starttime = $oneInterval ? $start[0] : $start[$index];
-// 			  $helioRequest->stoptime = $oneInterval ? $stop[0] : $stop[$index];
-// 		      }
-// 		
-// 		      $helioRequest->arg[$currentArg] = $this->parseCondition($parts[1]); 
-// 	    }		             
-// 	  }
-// 	
-// 	$helioRequests[] = $helioRequest;   
-// 	return $helioRequests;
-//    }
-// 
-
+ 
 /**
 *	Transform condition from format PQL in available by Amda format
 *
 * @param     	string $condition
 * @return    	string  
 */
-  function parseCondition($condition) { 
+	private function parseCondition($condition) { 
 /* 
 *	PQL format		signification 	 AMDA		example
 *       ==========		=============	======		=======
@@ -223,9 +160,9 @@ class DES_WS {
 *						  deltav,500/600 eq.    500<deltav<600   eq. deltav GT 500, deltav LT 600
 */	
 		$length = strlen($condition);
-		if (strpos($condition, '/') === 0) $condArr = ' GT '.substr($condition,1); 	//$condArr = array('GT',substr($condition,1));
-		if (strpos($condition, '/') === false) $condArr = $condition; 		//= array('EQ',$condition); 
-		if (strpos($condition, '/') == $length-1) $condArr = ' LT '.substr($condition,0,$length-1); //  array('LT',substr($condition,0,$length-1));
+		if (strpos($condition, '/') === 0) $condArr = ' GT '.substr($condition,1); 	                //$condArr = array('GT',substr($condition,1));
+		if (strpos($condition, '/') === false) $condArr = $condition; 		                        //= array('EQ',$condition); 
+		if (strpos($condition, '/') == $length-1) $condArr = ' LT '.substr($condition,0,$length-1);     //  array('LT',substr($condition,0,$length-1));
                 if (strpos($condition, '/') > 0 &&  strpos($condition, '/') < $length-1) {
 				     $smallCond = explode('/',$condition);
                                      $condArr = array(' GT '.$smallCond[0], ' LT '.$smallCond[1]);
@@ -240,13 +177,12 @@ class DES_WS {
 * @param     	string $dir
 * @return    	void  
 */
-    function rrmdir($dir){
+    private function rrmdir($dir){
       if (is_dir($dir)) {
 	$objects = scandir($dir);
-// Recursively delete a directory that is not empty and directorys in directory
-	foreach ($objects as $object) {
-// If object isn't a directory recall recursively this function 
-	  if ($object != "." && $object != "..") {
+ 
+	foreach ($objects as $object) { // Recursively delete a directory that is not empty and directorys in directory 
+	  if ($object != "." && $object != "..") {  // If object isn't a directory recall recursively this function 
 	    if (filetype($dir."/".$object) == "dir") 
                      $this->rrmdir($dir."/".$object);
             else 
@@ -264,7 +200,7 @@ class DES_WS {
 * @param     	string $Command, $ID
 * @return    	string  
 */
-    function background($Command, $ID){
+    private function background($Command, $ID){
 
       $PID = exec("$Command 1> /dev/null 2> ".errorDir.$ID." & echo $!");
       if($PID!="")  return $PID;
@@ -279,13 +215,13 @@ class DES_WS {
 * @param     	string $PID
 * @return    	string
 */
-   function is_running($PID){
+   private function is_running($PID){
 
 	exec("ps $PID", $ProcessState);
 	       
 	if (count($ProcessState) >= 2) {
-		  $status = 'PENDING';
-		  $this->statusdescription = 'query pending';
+		  $status = 'EXECUTING';
+		  $this->statusdescription = 'query executing';
         }
 	else {
  		  $status = 'COMPLETED';
@@ -296,7 +232,6 @@ class DES_WS {
 
    }
 
-////////////////////////////////////////         MAKE DATA         //////////////////////////////////////////////
 // =============================================================================================================
 /** makeRequest reads the conditions received from helio and 
 *   prepare a request object.
@@ -312,58 +247,138 @@ class DES_WS {
 * @return    	string    
 */
 //  ===============================================================================================================
-	private function makeRequest($conditions, $start, $stop, $from, $oneInterval) {
+	private function makeRequest($conditions, $start, $stop) {
   
-	    $helioRequest = new stdClass();  
-	    $index = 0;
-/*  Creation object with data to search results */
-
-    foreach ($conditions as $condition) {     
-	  if ($condition != '') {
-		    $parts =  explode(',',$condition);
-		    $args =  explode('.',$parts[0]);
-		    $argsN = count($args);
-
-		    if ($argsN > 1) {
-				  
-			  $currentFunction = $args[$argsN - 2];
-			  $currentArg = $args[$argsN - 1];
-			  if ($argsN > 2) {
-			      if ($args[$argsN - 3] !== "J")
-				      $currentMission = $args[$argsN - 3];
-			      else $currentMission = $from[0];
-			  }
-			  else  $currentMission = $from[0];				  
-		    }       
-  
-		      if (!$helioRequest->func){			   
-			    $helioRequest->func = $currentFunction;
-			    $helioRequest->mission = $currentMission;
-			    $helioRequest->starttime = $oneInterval ? $start[0] : $start[$index];
-			    $helioRequest->stoptime = $oneInterval ? $stop[0] : $stop[$index];
-		      }
-		      if ($helioRequest->func != $currentFunction || $helioRequest->mission != $currentMission) {
-
-	// new request
-			  $helioRequests[] = $helioRequest;
-			  $index++;
-			  $helioRequest = new stdClass();			 
-			  $helioRequest->func = $currentFunction;
-			  $helioRequest->mission = $currentMission;
-			  $helioRequest->starttime = $oneInterval ? $start[0] : $start[$index];
-			  $helioRequest->stoptime = $oneInterval ? $stop[0] : $stop[$index];
-		      }
-		
-		      $helioRequest->arg[$currentArg] = $this->parseCondition($parts[1]); 
-	    }		             
-	  }
+            $oneInterval = count($start) == 1;
 	
-	$helioRequests[] = $helioRequest;   
-	return $helioRequests;
+	    if (!file_exists(functionsXml)) {  // DES functions description
+		 //error  "InternalError00: no functions description file"); 
+		       
+		//return;
+	    }
+ 
+	    $dom = new DomDocument("1.0");
+	    $dom->load(functionsXml); 
+	    $index = 0;
+
+/*  Create object for search request[s] */
+
+	    foreach ($conditions as $condition) {     
+		  if ($condition != '') {
+			  
+			    $parts =  explode(',',$condition); 
+			    $func = trim($parts[0]);
+ 		             
+			    $thisFunction =  $dom->getElementById($func);
+			    if ($thisFunction == null){
+// 				if ($this->isSoap) throw new SoapFault("InternalError01","function $func is not implemented in AMDA-HELIO yet");
+// 				else return array("error" => "InternalError01: function $func is not implemented in AMDA-HELIO yet");
+// 				return;
+			    }	
+			    $params =  explode(':',$parts[1]);
+			    $mission = trim($params[0]);
+ 
+// find predefined arguments in functions.xml file
+			    $args = $thisFunction->getElementsByTagName('arg');
+			    $n_param = $thisFunction->getAttribute('n_param');
+			    $totalArgs = $args->length + $n_param;
+ 
+			    if ($totalArgs  != (count($params) - 1)) {
+// 			    	if ($this->isSoap) throw new SoapFault("InternalError02","function $func : arguments number is ".count($function->arg).
+// 						  " expected number is ".$args->length));
+// 				else return array("error" => "function $func : arguments number is ".count($function->arg).
+// 						  " expected number is ".$args->length));
+//  				return;
+			    }
+// CHECK if parameters are really applicable to the function
+ 
+			    
+				  $helioRequest = new stdClass();	 
+				  $helioRequest->func = $func;
+				  $helioRequest->mission = $mission;
+                                 
+				  $helioRequest->starttime = $oneInterval ? $start[0] : $start[$index];
+				  $helioRequest->stoptime = $oneInterval ? $stop[0] : $stop[$index];
+			 
+				   for ($i = 0; $i < $n_param; $i++) $helioRequest->parameter[] = $params[$i + 1];
+
+				   $j = 0;
+				   foreach($args as $arg) {					    
+					    $helioRequest->arg[$arg->getAttribute('name')] = $this->parseCondition($params[$n_param + $j +1]); 
+					    $j++;
+				  } 
+
+			$index++;
+			$helioRequests[] = $helioRequest;  
+
+		  }
+	}
+		  
+		return $helioRequests;
    }
 
+/**
+*        Checking Arguments
+*/
 
-////////////////////////////////////////         REQUESTS          //////////////////////////////////////////////
+	  private function checkArgs($vars, $isPlot) {
+  	    
+	    if ($vars['STARTTIME'] == null) {// STARTTIME is mandatory parameter
+			 if ($this->isSoap) throw new SoapFault("request01","Request Error: No StartTime "); //TODO => Global Mission Start would be used");
+	                 else return array("error" => "Request Error: No Start Time");		  
+	      }
+	    if ($vars['ENDTIME'] == null) { // STOPTIME is mandatory parameter
+			if ($this->isSoap) throw new SoapFault("request02","Request Error: No End Time");  //TODO => Global Mission End would be used");
+			else return array("error" => "Request Error: No End Time");
+	    }
+                   
+	     if ($isPlot) {
+		if ($vars['FROM'] == null) { // FROM (== MISSIONS) is mandatory parameter for PLOT
+			    if ($this->isSoap) throw new SoapFault("request03","Request Error: No FROM statement"); 
+			    else return array("error" => "Request Error: No FROM statement");
+			 } 
+                        $this->missions = explode(",",$vars['FROM']);  // MISSIONS split into  array  
+		}
+             else  {		
+		  if ($vars['WHERE'] == null) { // WHERE is mandatory parameter for SEARCH
+			  if ($this->isSoap) throw new SoapFault("request04","Request Error: No WHERE statement"); 
+			    else return array("error" => "Request Error: No WHERE statement");
+/* Get simple conditions */ 
+                   }  
+		      $this->missions = explode(';',$vars['WHERE']); 	    
+               }
+  
+	    $this->start =  explode(',', $vars['STARTTIME']); // STARTTIME split into  array   
+	    $this->stop = explode(',',$vars['ENDTIME']);      // ENDTIME split into  array  
+
+            if (count($this->start) != count($this->stop)) {
+			if ($this->isSoap) throw new SoapFault("request05","Request Error: The number of StartTimes and EndTimes is different");
+			else return array("error" => "Request Error: The number of StartTimes and EndTimes is different");
+	    }
+           
+/*  
+*       Control of number of missions/conditions and number of intervals
+*                         Two possibilities:  one time interval 		- several missions/conditions
+*		                              several time intervals		- several missions/conditions (Number Of Missions/Conditions = Number Of Intervals)
+*/ 
+	    $this->nInts = count($this->start); // Number of Intervals
+
+	    if ($this->nInts != count($this->missions) && $this->nInts > 1) {
+		      if ($this->isSoap) throw new SoapFault("request06","Request Error: The number of StartTime and Missions is different");
+		      else return array("error" => "Request Error: The number of StartTime and Missions is different");
+     	    }
+
+	    for ($i = 0; $i < $this->nInts; $i++)
+		if ($this->start[$i] > $this->stop[$i]) { // StartTime should be less than StopTime
+		      if ($this->isSoap) throw new SoapFault("request07","Request Error: StartTime is less than StopTime in ".$i." interval");
+		      else return array("error" => "Request Error: StartTime is less than StopTime in ".$i." interval");
+	        }
+	
+           return;
+  }
+/*****************************************************************
+*                           PUBLIC FUNCTIONS
+*****************************************************************/ 
 /**
 *           MAIN LONG RUNNING QUERY
 *
@@ -375,109 +390,126 @@ class DES_WS {
 * @return    	string  
 */
    
-	 function  LongQuery($start, $stop, $missions,$where) {
-/* Generation random jobID (function setID())*/
-	    $ID = $this->setID();
- 
-/* Call a function getIPclient() to find client IP and put it in global variable  */ 
-            $this->IP = $this->getIPclient();
-/* DD CHECK if HELIO1 has already registerd; if not  DD LOGIN */  
-           if ($this->ddCheckUser() != 0) {        
-	          if ($this->ddLogin() != 0) 
-//                            throw new SoapFault("server00","Server Error: DD Login");  	TODO error message
-		      echo 'error';
-	          if ($this->ddCheckUser() != 0)  
-// 			      throw new SoapFault("server01","Server Error: Check User");	TODO error message
-		      echo 'error';
-           }
-/* Make all using in this service folders */		 
-            if (!$this->makeDir($ID)) throw new SoapFault("server02","Server Error: Mkdir");
-
-/* Testing if time intervals are multiples */	  
-	    $oneInterval = false;    
-	    if (count($start) == 1) $oneInterval = true;	    
-	    $conditions = explode(';',$where);	
-/*  Control number of missions and if missions name is present in the WHERE	*/
-/*  if WHERE hasn't missions, dublicate conditions whith all misssions	 	*/
-	    $whereParts = explode(',',$conditions[0]);
-	    $firstPart = explode('.',$whereParts[0]);
-	    if ((count($missions) > 1) && (count($firstPart) < 3)){
-	      foreach ($missions as $mission){
-		foreach ($conditions as $condition){
-		  $condition = $mission.'.'.$condition;
-		  $newConditions[] = $condition;
-		}
-	      }
-	    $conditions = $newConditions;
+	 public function  LongQuery($data) {
+	    if (Verbose) {
+		 fwrite(log,'start LongQuery'.PHP_EOL);
 	    }
-/* Call function makeRequest() to complete set of arguments to pass through a script php */
-	    $requests = $this -> makeRequest($conditions, $start, $stop, $missions, $oneInterval);
+// 	    exit();
+            if(is_object($data)) {
+		      $vars = get_object_vars($data);
+		      $this->isSoap = true;
+             }
+	    else $vars = $data;
+	    
+	    if (($result = $this->checkArgs($vars, false)) != null) return $result; // return in case of errors for REST interface
+                   
+	    $ID = $this->setID();  // unique JobID
+            $this->IP = $this->getIPclient(); // Get ClientIP
+ 
+	    if ($this->ddCheckUser() != 0) {        
+		    if ($this->ddLogin() != 0) { // DD Login if user is not registered
+			 if ($this->isSoap) throw new SoapFault("server00","Server Error: AMDA Login procedure failed"); 
+                         else return array("error" => "Server Error: AMDA Login procedure failed");
+                     } 	 
+
+		    if ($this->ddCheckUser() != 0) { 
+			if ($this->isSoap) throw new SoapFault("server01","Server Error: Check User procedure failed");
+			else return array("error" => "Server Error: CheckUser procedure failed");
+		    }
+	    }
+    /* Call function makeRequest() to complete set of arguments to pass through a script php */
+	    $requests = $this->makeRequest($this->missions, $this->start, $this->stop); 
+//TODO add if is errors in requests
+      
+            if (!$this->makeDir($ID, false)) { // Make all needed dirs
+		 if ($this->isSoap) throw new SoapFault("server02","Server Error: Can't make needed dirs"); 
+		 else return array("error" => "Server Error: Can't make needed dirs");
+	    }
+ 
 /* Complete set of arguments with IP client & jobID */	    
 	    $helioRequests = new stdClass();  
 	    $helioRequests->requests = $requests;
 	    $helioRequests->IP = $this->IP;
 	    $helioRequests->ID = $ID;
-     
-/* Encoding a serialized string of stdClass() because serialized string has 
-   special characters generated after serialization.
-*/
+            $helioRequests->user = $this->user;
+
+   
+	    if (Verbose) {
+		  $rr = print_r($helioRequests,true);
+		  fwrite(log,$rr.PHP_EOL);
+	    }
+//    	    exit();	
+
 	    $argument = urlencode(serialize($helioRequests));
-/* Preparation command and lunch php script multiRequest.php in background with argument
-*/
-	    $cmd = 'php '.wsDir.'/helio-des/multiRequest_new.php '.$argument;		//TODO suppr /TEST_NAT2
+
+/* Launch php script multiRequest.php in background with argument */
+ 
+	    $cmd = 'php '.wsDir.'/helio-des/multiRequest.php '.$argument; 
 	    $pid =  $this->background($cmd, $ID);
-/* Save PID of this script in the folder: ex. /home/budnik/Amda-Helio/DDHTML/WebServices/HelioPID
-   file named with jobID ($ID)
+//  	    exit();	
+/* Save PID in the folder: ex. /home/budnik/Amda-Helio/DDHTML/WebServices/HelioPID
+   file named by jobID ($ID)
 */
 	    if ($pid) {
                 $filename = pidDir.$ID;
 	        $file = fopen($filename,"w");
 	        fwrite($file,$pid);
-	        fclose($file); 
-		$cmdTimeOut = 'php '.wsDir.'/killPID.php '.$ID.' '.$pid;
+	        fclose($file);
+ 
+		$cmdTimeOut = 'php '.wsDir.'/helio-des/killPID.php '.$ID.' '.$pid.' '.TIMEOUT;  // Launch KillProcess with TimeOut
 		$pidTimeOut =  $this->background($cmdTimeOut, $ID);
              }
-             else 
-                   throw new SoapFault("server03","Server Error: Can't launch process");
-// Launch script with TimeOut 
-	    return array('ID' => $ID);
+             else {                  
+                   if ($this->isSoap)  throw new SoapFault("server03","Server Error: Can't launch process ".$ID); 
+		   else return array("error" => "Server Error: Can't launch process ".$ID);
+	     }
+	     return array('ID' => $ID);
 	  }
 /**
 *          GET STATUS
 *
-* Recive as argument jobID in array format 
+* Receives as argument jobID in array format 
 * Checks process (by PID).
 * If the process is completed, checks the files of the results.
 *
 * @param     	list $data
 * @return    	string  LongQuery
 */ 
-       function GetStatus($ID) {
+       public function GetStatus($data) {
+	  
+	    if(is_object($data)) {
+		  $vars = get_object_vars($data); 
+		  $this->isSoap = true;  
+	      }
+	    else 
+                   $vars = $data;
+
+	    $ID = $vars['ID'];
+            $isPlot = strncmp($ID, 'HP', 2) === 0; 
 
 	    $filename = pidDir.$ID;
+	     if (Verbose) fwrite(log,pidDir.$ID.PHP_EOL); 
 /*Checks whether the file with process PID is created, if not - error message*/
 	    if (!file_exists($filename))               
- 	       return array('Status' => array('ID' => $ID, 'status' => 'ERROR','description' => 'no process ID')); 
+ 	       return array('Status' => array('ID' => $ID, 'status' => 'ERROR','description' => 'no such process ID')); 
           
-// Read pid from file in variable $pid and return string in xml format with status
-	    $fileContents = file_get_contents($filename);
-	    $pid = $fileContents;   
-// Testing if php process running yet 
-	    $status = $this->is_running($pid);
+	    $pid = file_get_contents($filename);  // Read pid from file   
+	    $status = $this->is_running($pid); // Testing if php process running yet 
 
-	    if ($status == 'COMPLETED') {		  
-		$dirName = resultDir.$ID."/TT/";
-		$xmlName = "helioResult";
-// Testing generating files
-		if (!file_exists($dirName.$xmlName.'.xml'))  
-		      return array('Status' => array('ID' => $ID, 'status' => 'ERROR','description' => 'no result table'));
-	
-                if (!rename($dirName.'VOT.xml',finalDir.'MDES_'.$ID.'.xml') && !file_exists(finalDir.'MDES_'.$ID.'.xml'))
-                       return array('Status' => array('ID' => $ID, 'status' => 'ERROR','description' => 'problems while copying VOT'));  
-                      	 			 
-	  }
+	    if ($status == 'COMPLETED')	 
+               if ($isPlot) {
+		 if (Verbose) fwrite(log,finalDir.$ID.'.png'.PHP_EOL); 
+		  if (!file_exists(finalDir.$ID.'.pdf') && !file_exists(finalDir.$ID.'.png'))  
+		        return array('Status' => array('ID' => $ID, 'status' => 'ERROR','description' => 'no plot'));	
+               }
+               else {
+		    if (Verbose) fwrite(log,finalDir.$ID.'.xml'.PHP_EOL);
+		    if (!file_exists(finalDir.$ID.'.xml'))  
+		        return array('Status' => array('ID' => $ID, 'status' => 'ERROR','description' => 'no result table'));	    
+	      }
+	  
 // Result array according to WSDL requirements          
-	  $ResultInfo = array('Status' => array('ID' => $ID, 'status' => $status,'description' =>   $this->statusdescription)); 
+	  $ResultInfo = array('Status' => array('ID' => $ID, 'status' => $status,'description' => $this->statusdescription)); 
 
  	  return $ResultInfo;
        }
@@ -488,33 +520,172 @@ class DES_WS {
 * @param     	list $data
 * @return    	string  
 */ 
-       function GetResult($ID) {
-	    
+       public function GetResult($data) { 
+
+	    if(is_object($data)) {
+		      $vars = get_object_vars($data); 
+                      $this->isSoap = true; 
+	      }
+	    else $vars = $data;
+
+            $ID = $vars['ID'];
+	    $isPlot = strncmp($ID, 'HP', 2) === 0; 
+            
+          
 	    $filePID = pidDir.$ID;
 	    $fileError = errorDir.$ID;
+            
 // Taking information about errors during the script. If file is empty - no errors.
- 	    $fileInfo = file_get_contents($fileError);
-// Name of result file
- //           $votName = 'VOT'.$ID.'.xml'; 
-	    $votName = 'MDES_'.$ID.'.xml'; 
+ 	    if (file_exists($fileError)) $fileInfo = file_get_contents($fileError);
+	    else $fileInfo = 'No info';
+            
+		$votName = $ID.'.xml'; // Name of result file
+//             }
+	    if (!file_exists(finalDir.$votName)) 
+		      return array('ResultInfo' =>
+                          array('ID' => $ID, 'resultURI' => 'No file','fileInfo' => $fileInfo,
+				  'status' => 'Error: ','description' => ' unknown error'));   
 
  	    $resultURI = webAlias. $votName;	//REMETTRE   TODO
-      
+	          
 // Result array according to WSDL requirements  
 	    $ResultInfo = array('ResultInfo' =>
-                          array('ID' => $ID,'resultURI' => $resultURI,'fileInfo' => $fileInfo,'status' => 'COMPLETED','description' => 'Data Is Ready')); 
+                          array('ID' => $ID,'resultURI' => $resultURI,'fileInfo' => $fileInfo,
+				  'status' => 'COMPLETED','description' => 'Data Is Ready')); 
+	    
 
-// Delete files with ended PID and Errors	    
-	    if (file_exists($filePID)) unlink($filePID);
+	    if (file_exists($filePID)) unlink($filePID); 
 	    if (file_exists($fileError)) unlink($fileError);
-// Deleting temporary folders
-	    $this->rrmdir(resultDir.$ID);
+ 
+	    if (file_exists(resultDir.$ID)) $this->rrmdir(resultDir.$ID); // Deleting temporary folders
+
  	  return $ResultInfo;
        }
 
+/**
+*            LONG TIME QUERY
+*
+*   The Long Time Query  is being used for plotting with 'Mission' layout
+*  
+*/
 
+	 public function  Abort($data) {
+
+	    if(is_object($data)) {
+		      $vars = get_object_vars($data); 
+                      $this->isSoap = true; 
+	      }
+	    else $vars = $data;
+
+            $ID = $vars['ID'];
+
+	    $filename = pidDir.$ID;
+	    	    
+	    if (!file_exists($filename)) 
+		return array('Status' => array('ID' => $ID, 'status' => 'ERROR','description' => 'no such process ID')); 
+          
+	    $pid = file_get_contents($filename);  // Read pid from file  
+	  	    
+	    if ($pid) {
+		exec("kill -9 $pid");
+             }
+             else {  
+		   return array('Status' => array('ID' => $ID, 'status' => 'ERROR','description' => "Server Error: Can't kill process")); 
+	      }
+	   
+	    $status = 'ABORTED';
+	    $this->statusdescription = 'query aborted'; 
+	    
+	    if (file_exists($filePID)) unlink($filename);
+	    if (file_exists(resultDir.$ID)) $this->rrmdir(resultDir.$ID); // Deleting temporary folders
+
+	    return array('Status' => array('ID' => $ID, 'status' => $status,'description' => $this->statusdescription));
+	}
+
+
+/**
+*            LONG TIME QUERY
+*
+*   The Long Time Query  is being used for plotting with 'Mission' layout
+*  
+*/
+
+public function  LongTimeQuery($data) {
+
+             if(is_object($data)) {
+		      $vars = get_object_vars($data);
+		      $this->isSoap = true;
+             }
+	    else $vars = $data; 
+
+	    if (($result = $this->checkArgs($vars, true)) != null) return $result; 
+
+// Set different HELIOPREFIX
+            $this->HELIOPREFIX = 'HP';
+	    $ID = $this->setID();  // unique JobID
+
+            $this->IP = $this->getIPclient(); // Get ClientIP
+ 
+	    if ($this->ddCheckUser() != 0) {        
+		    if ($this->ddLogin() != 0) { // DD Login if user is not registered
+			 if ($this->isSoap) throw new SoapFault("server00","Server Error: AMDA Login procedure failed"); 
+                         else return array("error" => "Server Error: AMDA Login procedure failed");
+                     } 	 
+
+		    if ($this->ddCheckUser() != 0) { 
+			if ($this->isSoap) throw new SoapFault("server01","Server Error: Check User procedure failed");
+			else return array("error" => "Server Error: CheckUser procedure failed");
+		    }
+	    }
+
+ 	      if (!$this->makeDir($ID, true)) { // Make all needed dirs
+		 if ($this->isSoap) throw new SoapFault("server02","Server Error: Can't make needed dirs"); 
+		 else return array("error" => "Server Error: Can't make needed dirs");
+	    }
+// Duplicate time intervals to have the same number as missions
+            if (count($this->start) === 1 &&  count($this->missions) > 1) {
+                 for ( $i = 0; $i < count($this->missions); $i++) {
+                   $startArr[] = $this->start[0];
+                   $stopArr[] = $this->stop[0];
+                 }
+		  $this->start = $startArr;
+		  $this->stop  = $stopArr;
+	    }
+
+            $helioRequest = new stdClass();  
+	    $helioRequest->missions = $this->missions;
+            $helioRequest->start = $this->start;
+            $helioRequest->stop = $this->stop;
+	    $helioRequest->IP = $this->IP;
+	    $helioRequest->ID = $ID;
+            $helioRequest->user = $this->user;
+
+	    $argument = urlencode(serialize($helioRequest));
+
+/* Launch php script multi[one]Plot.php in background with argument */
+            
+	    $cmd = 'php '.wsDir.'/helio-des/multiPlot.php '.$argument; 	
+	    $pid =  $this->background($cmd, $ID);
+     
+/* Save PID in the folder: ex. /home/budnik/Amda-Helio/DDHTML/WebServices/HelioPID
+   file named by jobID ($ID)
+*/
+	    if ($pid) {
+                $filename = pidDir.$ID;
+	        $file = fopen($filename,"w");
+	        fwrite($file,$pid);
+	        fclose($file);
+ 
+		$cmdTimeOut = 'php '.wsDir.'/helio-des/killPID.php '.$ID.' '.$pid.' '.TIMEOUT;  // Launch KillProcess with TimeOut
+		$pidTimeOut =  $this->background($cmdTimeOut, $ID);
+             }
+             else {                  
+                   if ($this->isSoap)  throw new SoapFault("server03","Server Error: Can't launch process ".$ID); 
+		   else return array("error" => "Server Error: Can't launch process ".$ID);
+	      }
+	    return array('ID' => $ID);
+
+	  }
 }
 
 ?>
-
-
